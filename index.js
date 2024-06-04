@@ -19,7 +19,7 @@ const port = process.env.PORT || 5000;;
 
 // FTP connect
 
-app.get("/", (req, res) => {
+app.get("/api", (req, res) => {
   res.send("hello world");
 });
 
