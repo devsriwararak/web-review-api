@@ -3,6 +3,7 @@ import cors from "cors";
 import pool from "./db.js";
 import multer from "multer";
 import fs from "fs";
+import stream from  'stream'
 // import { ftpClient, connectToFtp } from "./Ftp.js";
 import ftpService from "./ftpService .js";
 const app = express();
@@ -16,6 +17,7 @@ app.use(cors(corsOptions));
 // app.use(cors());
 app.use(express.json());
 const port = process.env.PORT || 5000;;
+
 
 // FTP connect
 
@@ -113,7 +115,9 @@ app.delete("/api/type/:id", async (req, res) => {
 // PRODUCTS **************************************************
 // บันทึก
 // ทำให้การทำงานเร็วขึ้น
-const upload = multer({ dest: "uploads/" });
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
 app.post("/api/products", upload.single("image"), async (req, res) => {
   try {
     const {
@@ -127,10 +131,8 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
       isUpdate,
       type_id,
     } = req.body;
-    const { path: filePath, originalname } = req.file || {};
-    console.log(req.body);
-    console.log(req.file);
-
+  console.log(req.body);
+    const file = req.file || {};
     if (
       !title ||
       !description ||
@@ -140,10 +142,8 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
       type_id == "null" ||
       (isUpdate === "false" && !req.file)
     ) {
-      filePath && (await ftpService.deleteLocalFile(filePath));
       throw new Error("ส่งข้อมูลไม่ครบ");
     }
-
     // เช็ค ชื่่อหัวข้อซ้ำ
     const sqlCheckTitle = `SELECT title FROM blog WHERE website_id = ? AND title = ?`;
     const [resultCheckTitle] = await pool.query(sqlCheckTitle, [
@@ -151,18 +151,17 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
       title,
     ]);
     if (resultCheckTitle.length > 0) {
-      filePath && (await ftpService.deleteLocalFile(filePath));
       throw new Error("มีหัวข้อนี้แล้ว กรุณาเพิ่มใหม่ !!");
     }
-
     let newFileName;
-    if (filePath && originalname) {
-      newFileName = Date.now() + "_" + originalname;
+    if (file) {
+      newFileName = Date.now() + "_" + file.originalname;
       const remoteFilePath = `/public_html/uploads/reviewmoviehit/${newFileName}`;
       // อัปโหลดไฟล์ไปยัง FTP
-      await ftpService.uploadFile(filePath, remoteFilePath);
-      // ตรวจสอบและลบไฟล์ในเซิร์ฟเวอร์
-      await ftpService.deleteLocalFile(filePath);
+      const readStream = new stream.PassThrough();
+      readStream.end(file.buffer);
+      await ftpService.uploadFile(readStream, remoteFilePath);
+    
     }
 
     // // เช็ครูป
@@ -180,15 +179,16 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
       } else {
         useimage = newFileName;
       }
+         // ลบรูปเดิมใน FTP กรณีแก้ไขรูปใหม่
+         if(isUpdate === "true"){
+          const remoteFilePath = `/public_html/uploads/reviewmoviehit/${resultCheckimage[0].image}`;
+          await ftpService.deleteRemoteFile(remoteFilePath)
+        }
+     
     }
-
-    console.log("newFileName", newFileName);
-    console.log("useimage", useimage);
-
     // บันทึกข้อมูลลงในฐานข้อมูล
     let sql = "";
     let addData = [];
-
     if (isUpdate === "true") {
       sql =
         "UPDATE blog SET title = ?, description = ?, contants = ?, keywords = ?, score = ?, type_id = ?, image = ? WHERE id = ?";
@@ -215,7 +215,6 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
         type_id
       );
     }
-
     const [result] = await pool.query(sql, addData);
     res
       .status(200)
@@ -225,6 +224,33 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
     res.status(500).json(error.message);
   }
 });
+// const storage = multer.memoryStorage();
+// const upload = multer({ storage: storage });
+// app.post('/api/products', upload.single('image'), async (req, res) => {
+//   try {
+//     const file = req.file;
+//     console.log(file);
+
+//     let newFileName;
+//     if (file) {
+//       newFileName = Date.now() + '_' + file.originalname;
+//       const remoteFilePath = `/public_html/uploads/reviewmoviehit/${newFileName}`;
+
+//       const readStream = new stream.PassThrough();
+//       readStream.end(file.buffer);
+
+//       await ftpService.uploadFile(readStream, remoteFilePath);
+
+//       res.status(200).json({ message: 'File uploaded successfully', fileName: newFileName });
+//     } else {
+//       res.status(400).json({ message: 'No file uploaded' });
+//     }
+//   } catch (error) {
+//     console.error('Error uploading file', error);
+//     res.status(500).json({ message: 'Error uploading file' });
+//   }
+// });
+
 
 // GET ALL
 app.get("/api/products/:website_id", async (req, res) => {
