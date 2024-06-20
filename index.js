@@ -16,7 +16,7 @@ app.use(cors(corsOptions));
 
 // app.use(cors());
 app.use(express.json());
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 4000;
 
 // FTP connect
 
@@ -290,11 +290,9 @@ app.get("/api/display/top/:website_id", async (req, res) => {
 app.get("/api/display/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(id);
     if (id == "") throw new Error("ไม่พบ id");
     const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE id = ?  LIMIT 1 `;
     const [result] = await pool.query(sql, [id]);
-    console.log(result);
     res.status(200).json(result);
   } catch (error) {
     console.log(error);
@@ -305,8 +303,6 @@ app.get("/api/display/:id", async (req, res) => {
 app.get("/api/display/type/:type_name", async (req, res) => {
   const { type_name } = req.params;
   const { website_id } = req.query;
-  console.log("type_name :", type_name);
-  console.log("website_id : ", website_id);
   try {
     if (type_name == "" && website_id == "")
       throw new Error("ไม่พบ type_name && website_id ");
@@ -327,6 +323,23 @@ app.get("/api/display/type/:type_name", async (req, res) => {
     res.status(500).json(error.message);
   }
 });
+
+// 4 บทความที่เกี่ยวข้อง
+app.get("/api/display/top_4/:website_id", async (req, res) => {
+  try {
+    const { website_id } = req.params;
+    if (website_id == "") throw new Error("ไม่พบ website_id");
+    const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? ORDER BY score DESC LIMIT 4 `;
+    const [result] = await pool.query(sql, [website_id]);
+    res.status(200).json(result);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json(error.message);
+  }
+});
+
+
+
 app.listen(port, () => {
   console.log("server is", port);
 });
