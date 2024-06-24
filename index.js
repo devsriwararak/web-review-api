@@ -9,7 +9,7 @@ import ftpService from "./ftpService .js";
 const app = express();
 
 const corsOptions = {
-  origin: ["http://localhost:3000", "https://reviewmoviehit.com"],
+  origin: ["http://localhost:3000", "https://reviewmoviehit.com","https://reviewcafehit.com"],
   credentials: true,
 };
 app.use(cors(corsOptions));
