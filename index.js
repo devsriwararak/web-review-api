@@ -148,10 +148,11 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
       throw new Error("ส่งข้อมูลไม่ครบ");
     }
     // เช็ค ชื่่อหัวข้อซ้ำ
-    const sqlCheckTitle = `SELECT title FROM blog WHERE website_id = ? AND title = ?`;
+    const sqlCheckTitle = `SELECT title FROM blog WHERE website_id = ? AND title = ? AND id != ?`;
     const [resultCheckTitle] = await pool.query(sqlCheckTitle, [
       website_id,
       title,
+      id
     ]);
     if (resultCheckTitle.length > 0) {
       throw new Error("มีหัวข้อนี้แล้ว กรุณาเพิ่มใหม่ !!");
