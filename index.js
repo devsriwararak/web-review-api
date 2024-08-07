@@ -9,7 +9,11 @@ import ftpService from "./ftpService .js";
 const app = express();
 
 const corsOptions = {
-  origin: ["http://localhost:3000", "https://reviewmoviehit.com","https://reviewcafehit.com"],
+  origin: [
+    "http://localhost:3000",
+    "https://reviewmoviehit.com",
+    "https://reviewcafehit.com",
+  ],
   credentials: true,
 };
 app.use(cors(corsOptions));
@@ -152,12 +156,12 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
     const [resultCheckTitle] = await pool.query(sqlCheckTitle, [
       website_id,
       title,
-      id
+      id,
     ]);
     if (resultCheckTitle.length > 0) {
       throw new Error("มีหัวข้อนี้แล้ว กรุณาเพิ่มใหม่ !!");
     }
-    
+
     let newFileName = "";
     if (file !== null) {
       newFileName = Date.now() + "_" + file.originalname;
@@ -301,10 +305,26 @@ app.get("/api/display/:id", async (req, res) => {
   }
 });
 // GET BY Type Movie
-app.get("/api/display/type/:type_name", async (req, res) => {
-  const { type_name } = req.params;
-  const { website_id } = req.query;
+app.post("/api/display/type", async (req, res) => {
+  const { type_name, website_id, full } = req.body;
+  
   try {
+    // paginations
+    const page = parseInt(req.body.page) || 1;
+    let sqlPage = `SELECT COUNT(id) as count FROM blog WHERE website_id = ? `;
+    let params_count = [website_id];
+    if(type_name === "all"){
+    }else {
+      sqlPage += ' AND  type_id = ?'
+      params_count.push(type_name)
+    }
+    const [resultPage] = await pool.query(sqlPage, params_count);
+
+    const limit = full ? resultPage[0].count : 8;
+    const offset = (page - 1) * limit;
+    const totalItems = parseInt(resultPage[0].count);
+    const totalPages = Math.ceil(totalItems / limit);
+
     if (type_name == "" && website_id == "")
       throw new Error("ไม่พบ type_name && website_id ");
     // ค้นหา ID Type name
@@ -317,8 +337,19 @@ app.get("/api/display/type/:type_name", async (req, res) => {
       sql += ` AND type_id = ? `;
       params.push(website_id, type_name);
     }
+
+    sql += ` LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
     const [result] = await pool.query(sql, params);
-    res.status(200).json(result);
+
+    return res.status(200).json({
+      page,
+      limit,
+      totalPages,
+      totalItems,
+      data: result,
+    });
   } catch (error) {
     console.log(error);
     res.status(500).json(error.message);
@@ -329,8 +360,7 @@ app.get("/api/display/type/:type_name", async (req, res) => {
 app.get("/api/display/top_4/:website_id", async (req, res) => {
   try {
     const { website_id } = req.params;
-    const {id} = req.query
-    
+    const { id } = req.query;
 
     if (website_id == "" || !id) throw new Error("ไม่พบ website_id");
     const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? AND id != ? ORDER BY score DESC LIMIT 5`;
@@ -341,8 +371,6 @@ app.get("/api/display/top_4/:website_id", async (req, res) => {
     res.status(500).json(error.message);
   }
 });
-
-
 
 app.listen(port, () => {
   console.log("server is", port);
