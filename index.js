@@ -329,9 +329,12 @@ app.get("/api/display/type/:type_name", async (req, res) => {
 app.get("/api/display/top_4/:website_id", async (req, res) => {
   try {
     const { website_id } = req.params;
-    if (website_id == "") throw new Error("ไม่พบ website_id");
-    const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? ORDER BY score DESC LIMIT 4 `;
-    const [result] = await pool.query(sql, [website_id]);
+    const {id} = req.query
+    
+
+    if (website_id == "" || !id) throw new Error("ไม่พบ website_id");
+    const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? AND id != ? ORDER BY score DESC LIMIT 5`;
+    const [result] = await pool.query(sql, [website_id, id]);
     res.status(200).json(result);
   } catch (error) {
     console.log(error);
