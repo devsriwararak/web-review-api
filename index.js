@@ -306,7 +306,7 @@ app.get("/api/display/:id", async (req, res) => {
 });
 // GET BY Type Movie
 app.post("/api/display/type", async (req, res) => {
-  const { type_name, website_id, full } = req.body;
+  const { type_name, website_id, full, search } = req.body;
   
   try {
     // paginations
@@ -336,6 +336,11 @@ app.post("/api/display/type", async (req, res) => {
     } else {
       sql += ` AND type_id = ? `;
       params.push(website_id, type_name);
+    }
+
+    if(search){
+      sql += ` AND title LIKE ? `;
+      params.push(`%${search}%`);
     }
 
     sql += ` LIMIT ? OFFSET ?`;
