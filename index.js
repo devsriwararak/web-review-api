@@ -230,13 +230,44 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
 });
 
 // GET ALL
-app.get("/api/products/:website_id", async (req, res) => {
+app.post("/api/products/view", async (req, res) => {
   try {
-    const { website_id } = req.params;
-    console.log(website_id);
-    const sql = `SELECT id, title, description, contants, keywords, image, score, type_id FROM blog WHERE website_id = ? `;
-    const [result] = await pool.query(sql, [website_id]);
-    res.status(200).json(result);
+    const { website_id, search, full } = req.body;
+
+        // paginations
+        const page = parseInt(req.body.page) || 1;
+        let sqlPage = `SELECT COUNT(id) as count FROM blog WHERE website_id = ? `;
+      let params_search = [website_id]
+        if(search){
+          sqlPage +=` AND title LIKE ?`
+          params_search.push(`%${search}%`)
+        }
+        const [resultPage] = await pool.query(sqlPage, params_search);
+        const limit = full ? resultPage[0].count : 10;
+        const offset = (page - 1) * limit;
+        const totalItems = parseInt(resultPage[0].count);
+        const totalPages = Math.ceil(totalItems / limit);
+
+    let sql = `SELECT id, title, description, contants, keywords, image, score, type_id FROM blog WHERE website_id = ? `;
+    let params = [website_id]
+    if(search){
+      sql +=` AND title LIKE ?`
+      params.push(`%${search}%`)
+    }
+
+    sql +=` LIMIT ? OFFSET ? `
+    params.push(limit, offset);
+
+    const [result] = await pool.query(sql, params);
+
+    return res.status(200).json({
+      page,
+      limit,
+      totalPages,
+      totalItems,
+      data: result,
+    });
+
   } catch (error) {
     console.log(error);
   }
@@ -319,7 +350,6 @@ app.post("/api/display/type", async (req, res) => {
       params_count.push(type_name)
     }
     const [resultPage] = await pool.query(sqlPage, params_count);
-
     const limit = full ? resultPage[0].count : 8;
     const offset = (page - 1) * limit;
     const totalItems = parseInt(resultPage[0].count);
