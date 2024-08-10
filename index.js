@@ -30,19 +30,26 @@ app.get("/", (req, res) => {
 
 // GET ALL WEBSITE
 app.get("/api/website", async (req, res) => {
+  let connection;
   try {
+    connection = await pool.getConnection();  
     const sql = `SELECT id,name FROM website`;
-    const [result] = await pool.query(sql);
+    const [result] = await connection.query(sql);
     res.status(200).json(result);
   } catch (error) {
     console.log(error);
     res.status(500).json(error);
+  } finally {
+    if(connection) connection.release()
   }
 });
 
 // GET TYPE
 app.get("/api/type", async (req, res) => {
+  let connection;
+
   try {
+    connection = await pool.getConnection();  
     const { search } = req.query;
     let sql = `SELECT type.id AS type_id ,type.name AS type_name, website_id , website.name AS website_name
     FROM type
@@ -54,11 +61,13 @@ app.get("/api/type", async (req, res) => {
       params.push(search);
     }
 
-    const [result] = await pool.query(sql, params);
+    const [result] = await connection.query(sql, params);
     res.status(200).json(result);
   } catch (error) {
     console.log(error);
     res.status(500).json(error.message);
+  } finally {
+    if(connection) connection.release()
   }
 });
 // POST TYPE
@@ -122,7 +131,10 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 app.post("/api/products", upload.single("image"), async (req, res) => {
+  let connection;
+
   try {
+    connection = await pool.getConnection();  
     const {
       title,
       description,
@@ -153,7 +165,7 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
     }
     // เช็ค ชื่่อหัวข้อซ้ำ
     const sqlCheckTitle = `SELECT title FROM blog WHERE website_id = ? AND title = ? AND id != ?`;
-    const [resultCheckTitle] = await pool.query(sqlCheckTitle, [
+    const [resultCheckTitle] = await connection.query(sqlCheckTitle, [
       website_id,
       title,
       id,
@@ -178,7 +190,7 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
     let useimage = newFileName;
     if (id) {
       const sqlCheckImage = `SELECT image FROM blog WHERE id = ? `;
-      const [resultCheckimage] = await pool.query(sqlCheckImage, [id]);
+      const [resultCheckimage] = await connection.query(sqlCheckImage, [id]);
       if (resultCheckimage[0].image == image) {
         useimage = resultCheckimage[0].image;
       } else {
@@ -219,19 +231,23 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
         type_id
       );
     }
-    const [result] = await pool.query(sql, addData);
+    const [result] = await connection.query(sql, addData);
     res
       .status(200)
       .json({ message: "บันทึกสำเร็จ", articleId: result.insertId });
   } catch (error) {
     console.log({ message: error.message });
     res.status(500).json(error.message);
+  } finally {
+    if(connection) connection.release()
   }
 });
 
 // GET ALL
 app.post("/api/products/view", async (req, res) => {
+  let connection;
   try {
+    connection = await pool.getConnection();  
     const { website_id, search, full } = req.body;
 
         // paginations
@@ -242,7 +258,7 @@ app.post("/api/products/view", async (req, res) => {
           sqlPage +=` AND title LIKE ?`
           params_search.push(`%${search}%`)
         }
-        const [resultPage] = await pool.query(sqlPage, params_search);
+        const [resultPage] = await connection.query(sqlPage, params_search);
         const limit = full ? resultPage[0].count : 10;
         const offset = (page - 1) * limit;
         const totalItems = parseInt(resultPage[0].count);
@@ -258,7 +274,7 @@ app.post("/api/products/view", async (req, res) => {
     sql +=` LIMIT ? OFFSET ? `
     params.push(limit, offset);
 
-    const [result] = await pool.query(sql, params);
+    const [result] = await connection.query(sql, params);
 
     return res.status(200).json({
       page,
@@ -270,6 +286,8 @@ app.post("/api/products/view", async (req, res) => {
 
   } catch (error) {
     console.log(error);
+  }finally {
+    if (connection) connection.release();
   }
 });
 // DELETE
@@ -297,49 +315,66 @@ app.post("/api/products/delete", async (req, res) => {
 
 // 8 อันดับหนังที่ได้ คะแนนมากที่สุด
 app.get("/api/display/top_8/:website_id", async (req, res) => {
+  let connection;
+
   try {
+    connection = await pool.getConnection();  
     const { website_id } = req.params;
     if (website_id == "") throw new Error("ไม่พบ website_id");
     const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? ORDER BY score DESC LIMIT 8 `;
-    const [result] = await pool.query(sql, [website_id]);
+    const [result] = await connection.query(sql, [website_id]);
     res.status(200).json(result);
   } catch (error) {
     console.log(error);
     res.status(500).json(error.message);
+  } finally {
+    if (connection) connection.release();
   }
 });
 // 8 อันดับหนังมาใหม่ ที่ลงใหม่เฉยๆ
 app.get("/api/display/top/:website_id", async (req, res) => {
+  let connection;
+
   try {
+    connection = await pool.getConnection();  
     const { website_id } = req.params;
     console.log(website_id);
     if (website_id == "") throw new Error("ไม่พบ website_id");
     const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? ORDER BY id DESC LIMIT 12 `;
-    const [result] = await pool.query(sql, [website_id]);
+    const [result] = await connection.query(sql, [website_id]);
     res.status(200).json(result);
   } catch (error) {
     console.log(error);
     res.status(500).json(error.message);
+  } finally {
+    if (connection) connection.release();
   }
 });
 // GET BY ID
 app.get("/api/display/:id", async (req, res) => {
+  let connection;
+
   try {
+    connection = await pool.getConnection(); 
     const { id } = req.params;
     if (id == "") throw new Error("ไม่พบ id");
     const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE id = ?  LIMIT 1 `;
-    const [result] = await pool.query(sql, [id]);
+    const [result] = await connection.query(sql, [id]);
     res.status(200).json(result);
   } catch (error) {
     console.log(error);
     res.status(500).json(error.message);
+  } finally {
+    if (connection) connection.release();
   }
 });
 // GET BY Type Movie
 app.post("/api/display/type", async (req, res) => {
   const { type_name, website_id, full, search } = req.body;
-  
+  let connection;
   try {
+    
+    connection = await pool.getConnection();  
     // paginations
     const page = parseInt(req.body.page) || 1;
     let sqlPage = `SELECT COUNT(id) as count FROM blog WHERE website_id = ? `;
@@ -349,7 +384,7 @@ app.post("/api/display/type", async (req, res) => {
       sqlPage += ' AND  type_id = ?'
       params_count.push(type_name)
     }
-    const [resultPage] = await pool.query(sqlPage, params_count);
+    const [resultPage] = await connection.query(sqlPage, params_count);
     const limit = full ? resultPage[0].count : 8;
     const offset = (page - 1) * limit;
     const totalItems = parseInt(resultPage[0].count);
@@ -376,7 +411,7 @@ app.post("/api/display/type", async (req, res) => {
     sql += ` LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
-    const [result] = await pool.query(sql, params);
+    const [result] = await connection.query(sql, params);
 
     return res.status(200).json({
       page,
@@ -388,24 +423,34 @@ app.post("/api/display/type", async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(500).json(error.message);
+  } finally {
+    if (connection) connection.release();
   }
 });
 
 // 4 บทความที่เกี่ยวข้อง
 app.get("/api/display/top_4/:website_id", async (req, res) => {
+  let connection;
   try {
+    connection = await pool.getConnection();  
     const { website_id } = req.params;
     const { id } = req.query;
 
     if (website_id == "" || !id) throw new Error("ไม่พบ website_id");
     const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? AND id != ? ORDER BY score DESC LIMIT 5`;
-    const [result] = await pool.query(sql, [website_id, id]);
+    const [result] = await connection.query(sql, [website_id, id]);
     res.status(200).json(result);
   } catch (error) {
     console.log(error);
     res.status(500).json(error.message);
+  }finally {
+    if (connection) connection.release();
   }
 });
+
+
+
+
 
 app.listen(port, () => {
   console.log("server is", port);
