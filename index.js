@@ -437,7 +437,7 @@ app.get("/api/display/top_4/:website_id", async (req, res) => {
     const { id } = req.query;
 
     if (website_id == "" || !id) throw new Error("ไม่พบ website_id");
-    const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? AND id != ? ORDER BY score DESC LIMIT 5`;
+    const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? AND id != ? ORDER BY score DESC LIMIT 6`;
     const [result] = await connection.query(sql, [website_id, id]);
     res.status(200).json(result);
   } catch (error) {
