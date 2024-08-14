@@ -13,6 +13,7 @@ const corsOptions = {
     "http://localhost:3000",
     "https://reviewmoviehit.com",
     "https://reviewcafehit.com",
+    "https://web-review-movie-hit.vercel.app"
   ],
   credentials: true,
 };
