@@ -14,6 +14,7 @@ const corsOptions = {
     "http://localhost:3000",
     "https://reviewmoviehit.com",
     "https://reviewcafehit.com",
+    "https://web.devsriwararak.com",
   ],
   credentials: true,
 };
@@ -367,6 +368,7 @@ app.get("/api/display/:id", async (req, res) => {
     if (connection) connection.release();
   }
 });
+
 // GET BY Type Movie
 app.post("/api/display/type", async (req, res) => {
   const { type_name, website_id, full, search } = req.body;
@@ -467,13 +469,13 @@ app.post("/api/blogs", async (req, res) => {
       params_search.push(`%${search}%`);
     }
     const [resultPage] = await connection.query(sqlPage, params_search);
-    const limit = full ? resultPage[0].count : 2;
+    const limit = full ? resultPage[0].count : 10;
     const offset = (page - 1) * limit;
     const totalItems = parseInt(resultPage[0].count);
     const totalPages = Math.ceil(totalItems / limit);
 
     console.log(req.body);
-    
+
     let sql = `SELECT id, title, description, image FROM blogs WHERE website_id = ?`;
     let params = [website_id];
     if (search) {
@@ -510,6 +512,40 @@ app.get("/api/blogs/:id", async (req, res) => {
     const sql = `SELECT id, title, description, keywords, content, image FROM blogs WHERE id = ?`;
     const [result] = await connection.query(sql, [id]);
     return res.status(200).json(result[0]);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json(error.message);
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// GET SHOW DISPLAY ALL DYNAMIC
+app.post("/api/blogs/display", async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const { website_id, id, limit } = req.body;
+    if (!website_id)
+      return res.status(400).json({ message: "ไม่พบเว็บที่ต้องการ" });
+    let sql = `SELECT id, title, image FROM blogs WHERE website_id = ?`;
+    let params = [website_id]
+
+  if (id) {
+    sql += ` AND id != ?`;
+    params.push(id);
+  }
+
+  sql += ` ORDER BY id DESC`
+
+  if (limit) {
+    sql += ` LIMIT ?`;
+    params.push(limit);
+  }
+
+
+    const [result] = await connection.query(sql, params)
+    return res.status(200).json(result)
   } catch (error) {
     console.error(error);
     return res.status(500).json(error.message);
@@ -639,7 +675,7 @@ app.post("/api/blogs/delete", async (req, res) => {
         ftpService.deleteRemoteFile(
           `/public_html/uploads/web.devsriwararak/${image}`
         ),
-      ]); 
+      ]);
     }
 
     const sql = `DELETE FROM blogs WHERE id = ?`;
