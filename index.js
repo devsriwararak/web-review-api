@@ -7,465 +7,131 @@ import stream from "stream";
 // import { ftpClient, connectToFtp } from "./Ftp.js";
 import ftpService from "./ftpService .js";
 import { v4 as uuidv4 } from "uuid";
+import path from "path";
 const app = express();
 
 const corsOptions = {
-  origin: [
-    "http://localhost:3000",
-    "https://reviewmoviehit.com",
-    "https://reviewcafehit.com",
-    "https://web.devsriwararak.com",
-  ],
+  origin: ["http://localhost:3000", "https://web.thaibusinessmate.com"],
   credentials: true,
 };
 app.use(cors(corsOptions));
 
-// app.use(cors());
 app.use(express.json());
 const port = process.env.PORT || 4000;
 
-// FTP connect
-
-app.get("/", (req, res) => {
-  res.send("hello world");
-});
-
-// GET ALL WEBSITE
-app.get("/api/website", async (req, res) => {
-  let connection;
+app.get("/", async (req, res) => {
   try {
-    connection = await pool.getConnection();
-    const sql = `SELECT id,name FROM website`;
-    const [result] = await connection.query(sql);
-    res.status(200).json(result);
+    return res.send("hello world");
   } catch (error) {
     console.log(error);
-    res.status(500).json(error);
+  }
+});
+
+// System
+app.post("/api/login", async (req, res) => {
+  const { username, password } = req.body;
+  let db = await pool.getConnection();
+
+  try {
+    if (!username || !password)
+      return res.status(400).json({ message: "ส่งข้อมูลไม่ครบ" });
+    if (username == "admin" && password == "1234") {
+      return res.status(200).json({ message: "เข้าสู่ระบบสำเร็จ" });
+    } else {
+      return res.status(400).json({ message: "user pass ไม่ถั่วต้ม" });
+    }
+  } catch (error) {
+    console.log(error);
   } finally {
-    if (connection) connection.release();
+    if (db) db.release();
   }
 });
 
-// GET TYPE
-app.get("/api/type", async (req, res) => {
-  let connection;
-
-  try {
-    connection = await pool.getConnection();
-    const { search } = req.query;
-    let sql = `SELECT type.id AS type_id ,type.name AS type_name, website_id , website.name AS website_name
-    FROM type
-    INNER JOIN website ON website.id = type.website_id
-    `;
-    const params = [];
-    if (search) {
-      sql += ` WHERE website_id = ?`;
-      params.push(search);
-    }
-
-    const [result] = await connection.query(sql, params);
-    res.status(200).json(result);
-  } catch (error) {
-    console.log(error);
-    res.status(500).json(error.message);
-  } finally {
-    if (connection) connection.release();
-  }
-});
-// POST TYPE
-app.post("/api/type", async (req, res) => {
-  try {
-    const { website_id, name } = req.body;
-
-    // check
-    const sqlCheck = `SELECT name FROM type WHERE name = ? AND website_id = ?`;
-    const [resultCheck] = await pool.query(sqlCheck, [name, website_id]);
-
-    if (resultCheck.length > 0) {
-      throw new Error("มีข้อมูลนี้แล้ว");
-    }
-    // INSERT SQL
-    const sql = `INSERT INTO type (name, website_id ) VALUES (?, ?)`;
-    await pool.query(sql, [name, website_id]);
-    res.status(200).json({ message: "บันทึกสำเร็จ" });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json(error.message);
-  }
-});
-app.put("/api/type", async (req, res) => {
-  try {
-    const { id, name, website_id } = req.body;
-    //check
-    const sqlCheck = `SELECT id FROM type WHERE name = ? AND website_id = ?`;
-    const [resultCheck] = await pool.query(sqlCheck, [name, website_id]);
-    if (resultCheck.length > 0) {
-      throw new Error("มีหมวดหมู่นี้แล้ว ในเว็บไซต์นี้");
-    }
-
-    // UPDATE SQL
-    const sql = `UPDATE type SET name = ? WHERE id = ?`;
-    await pool.query(sql, [name, id]);
-    res.status(200).json({ message: "ทำรายการสำเร็จ" });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json(error.message);
-  }
-});
-// DELETE TYPE
-app.delete("/api/type/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!id) return false;
-    const sql = `DELETE FROM type WHERE id = ?`;
-    await pool.query(sql, [id]);
-    res.status(200).json({ message: "ทำรายการสำเร็จ" });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json(error.message);
-  }
-});
-
-// PRODUCTS **************************************************
-
+// Blogs **************************************************
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-app.post("/api/products", upload.single("image"), async (req, res) => {
-  let connection;
-
+app.post(`/api/add/blog`, upload.single("image"), async (req, res) => {
+  let db = await pool.getConnection();
   try {
-    connection = await pool.getConnection();
-    const {
-      title,
-      description,
-      contants,
-      keywords,
-      score,
-      website_id,
-      id,
-      isUpdate,
-      type_id,
-      image,
-    } = req.body;
-
     const file = req.file || null;
-    console.log(req.body);
-    console.log(file);
+    const { id, title, desc, content, keywords, image } = req.body;
 
-    if (
-      !title ||
-      !description ||
-      !contants ||
-      !keywords ||
-      score == "0" ||
-      type_id == "null" ||
-      (isUpdate === "false" && !req.file)
-    ) {
-      throw new Error("ส่งข้อมูลไม่ครบ");
+    // Check Title ซ้ำ
+    let paramsChcekTitle = [title]
+    let sqlCheckTitle = `SELECT id FROM blogs WHERE title = ?`
+    if(id) {
+      sqlCheckTitle += ` AND id != ?`
+      paramsChcekTitle.push(id)
     }
-    // เช็ค ชื่่อหัวข้อซ้ำ
-    const sqlCheckTitle = `SELECT title FROM blog WHERE website_id = ? AND title = ? AND id != ?`;
-    const [resultCheckTitle] = await connection.query(sqlCheckTitle, [
-      website_id,
-      title,
-      id,
-    ]);
-    if (resultCheckTitle.length > 0) {
-      throw new Error("มีหัวข้อนี้แล้ว กรุณาเพิ่มใหม่ !!");
+    const [resultCheckTitle] = await db.query(sqlCheckTitle, paramsChcekTitle)
+    if(resultCheckTitle.length > 0) return res.status(400).json({message : 'มีหัวข้อนี้แล้ว'})
+
+    // check รูปเก่าก่อน
+    let checkImage = ""
+    if(id > 0){
+      const sqlCheckImage = `SELECT image FROM blogs WHERE id = ?`;
+      const [resultCheckImage] = await db.query(sqlCheckImage, [id]);
+       checkImage = resultCheckImage[0]?.image || "";
     }
+
 
     let newFileName = "";
     if (file !== null) {
-      newFileName = Date.now() + "_" + file.originalname;
-      const remoteFilePath = `/public_html/uploads/reviewmoviehit/${newFileName}`;
+      
+      const ext = path.extname(file.originalname);
+      newFileName = Date.now() + "_" + ext;
+      const remoteFilePath = `/public_html/web/uploads/${newFileName}`;
       // อัปโหลดไฟล์ไปยัง FTP
       const readStream = new stream.PassThrough();
       readStream.end(file.buffer);
-      if (newFileName != image) {
-        await ftpService.uploadFile(readStream, remoteFilePath);
-      }
-    }
 
-    // // เช็ครูป
-    let useimage = newFileName;
-    if (id) {
-      const sqlCheckImage = `SELECT image FROM blog WHERE id = ? `;
-      const [resultCheckimage] = await connection.query(sqlCheckImage, [id]);
-      if (resultCheckimage[0].image == image) {
-        useimage = resultCheckimage[0].image;
-      } else {
-        useimage = newFileName;
-        // ลบรูปเดิมใน FTP กรณีแก้ไขรูปใหม่
-        if (isUpdate === "true") {
-          const remoteFilePath = `/public_html/uploads/reviewmoviehit/${resultCheckimage[0].image}`;
-          await ftpService.deleteRemoteFile(remoteFilePath);
-        }
-      }
-    }
-    // บันทึกข้อมูลลงในฐานข้อมูล
-    let sql = "";
-    let addData = [];
-    if (isUpdate === "true") {
-      sql =
-        "UPDATE blog SET title = ?, description = ?, contants = ?, keywords = ?, score = ?, type_id = ?, image = ? WHERE id = ?";
-      addData.push(
-        title,
-        description,
-        contants,
-        keywords,
-        score,
-        type_id,
-        useimage,
-        id
-      );
+      // ลบรูปเก่าก่อน ถ้ามีนะ
+      if (checkImage)
+        await ftpService.deleteRemoteFile(
+          `/public_html/web/uploads/${checkImage}`
+        );
+      await ftpService.uploadFile(readStream, remoteFilePath);
     } else {
-      sql = `INSERT INTO blog (website_id, title, description, contants, keywords, score, image, type_id) VALUES (?,?,?,?,?,?,?,?)`;
-      addData.push(
-        website_id,
-        title,
-        description,
-        contants,
-        keywords,
-        score,
-        newFileName,
-        type_id
-      );
-    }
-    const [result] = await connection.query(sql, addData);
-    res
-      .status(200)
-      .json({ message: "บันทึกสำเร็จ", articleId: result.insertId });
-  } catch (error) {
-    console.log({ message: error.message });
-    res.status(500).json(error.message);
-  } finally {
-    if (connection) connection.release();
-  }
-});
-
-// GET ALL
-app.post("/api/products/view", async (req, res) => {
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    const { website_id, search, full } = req.body;
-
-    // paginations
-    const page = parseInt(req.body.page) || 1;
-    let sqlPage = `SELECT COUNT(id) as count FROM blog WHERE website_id = ? `;
-    let params_search = [website_id];
-    if (search) {
-      sqlPage += ` AND title LIKE ?`;
-      params_search.push(`%${search}%`);
-    }
-    const [resultPage] = await connection.query(sqlPage, params_search);
-    const limit = full ? resultPage[0].count : 10;
-    const offset = (page - 1) * limit;
-    const totalItems = parseInt(resultPage[0].count);
-    const totalPages = Math.ceil(totalItems / limit);
-
-    let sql = `SELECT id, title, description, contants, keywords, image, score, type_id FROM blog WHERE website_id = ? `;
-    let params = [website_id];
-    if (search) {
-      sql += ` AND title LIKE ?`;
-      params.push(`%${search}%`);
+      newFileName = image || "";
     }
 
-    sql += ` LIMIT ? OFFSET ? `;
-    params.push(limit, offset);
-
-    const [result] = await connection.query(sql, params);
-
-    return res.status(200).json({
-      page,
-      limit,
-      totalPages,
-      totalItems,
-      data: result,
-    });
-  } catch (error) {
-    console.log(error);
-  } finally {
-    if (connection) connection.release();
-  }
-});
-// DELETE
-app.post("/api/products/delete", async (req, res) => {
-  try {
-    const { id, image } = req.body;
-
-    // ลบไฟล์ใน FTP server และข้อมูลในฐานข้อมูล
-    await Promise.all([
-      ftpService.deleteRemoteFile(
-        `/public_html/uploads/reviewmoviehit/${image}`
-      ),
-      pool.query(`DELETE FROM blog WHERE id = ?`, [id]), // ลบข้อมูลในฐานข้อมูล MySQL
-    ]);
-
-    // ส่งคำตอบกลับไปยัง client เมื่อทำงานเสร็จสมบูรณ์
-    res.status(200).json({ message: "ลบไฟล์และข้อมูลบทความสำเร็จ" });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "มีข้อผิดพลาดเกิดขึ้น" });
-  }
-});
-
-// DISPLAY ***********************************************
-
-// 8 อันดับหนังที่ได้ คะแนนมากที่สุด
-app.get("/api/display/top_8/:website_id", async (req, res) => {
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    const { website_id } = req.params;
-    if (website_id == "") throw new Error("ไม่พบ website_id");
-    const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? ORDER BY score DESC LIMIT 8 `;
-    const [result] = await connection.query(sql, [website_id]);
-    res.status(200).json(result);
-  } catch (error) {
-    console.log(error);
-    res.status(500).json(error.message);
-  } finally {
-    if (connection) connection.release();
-  }
-});
-
-// 8 อันดับหนังมาใหม่ ที่ลงใหม่เฉยๆ
-app.get("/api/display/top/:website_id", async (req, res) => {
-  let connection;
-
-  try {
-    connection = await pool.getConnection();
-    const { website_id } = req.params;
-    console.log(website_id);
-    if (website_id == "") throw new Error("ไม่พบ website_id");
-    const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? ORDER BY id DESC LIMIT 12 `;
-    const [result] = await connection.query(sql, [website_id]);
-    res.status(200).json(result);
-  } catch (error) {
-    console.log(error);
-    res.status(500).json(error.message);
-  } finally {
-    if (connection) connection.release();
-  }
-});
-// GET BY ID
-app.get("/api/display/:id", async (req, res) => {
-  let connection;
-
-  try {
-    connection = await pool.getConnection();
-    const { id } = req.params;
-    if (id == "") throw new Error("ไม่พบ id");
-    const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE id = ?  LIMIT 1 `;
-    const [result] = await connection.query(sql, [id]);
-    res.status(200).json(result);
-  } catch (error) {
-    console.log(error);
-    res.status(500).json(error.message);
-  } finally {
-    if (connection) connection.release();
-  }
-});
-
-// GET BY Type Movie
-app.post("/api/display/type", async (req, res) => {
-  const { type_name, website_id, full, search } = req.body;
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    // paginations
-    const page = parseInt(req.body.page) || 1;
-    let sqlPage = `SELECT COUNT(id) as count FROM blog WHERE website_id = ? `;
-    let params_count = [website_id];
-    if (type_name === "all") {
-    } else {
-      sqlPage += " AND  type_id = ?";
-      params_count.push(type_name);
+    //บันทึก
+    let sql = ``;
+    let params = []
+    
+    if (id <= 0 ) {      
+      sql = `INSERT INTO blogs (title, description, keywords, content, image) VALUES (?, ?, ?, ?, ?)`;
+      params.push(title, desc, keywords, content, newFileName)
+    } 
+    
+    else if(id > 0) {
+      sql = `UPDATE blogs SET title = ?, description = ?, keywords = ?, content = ?, image = ? WHERE id = ?   `;
+      params.push(title, desc, keywords, content, newFileName, id)
     }
-    const [resultPage] = await connection.query(sqlPage, params_count);
-    const limit = full ? resultPage[0].count : 8;
-    const offset = (page - 1) * limit;
-    const totalItems = parseInt(resultPage[0].count);
-    const totalPages = Math.ceil(totalItems / limit);
+    
+    await db.query(sql, params);
 
-    if (type_name == "" && website_id == "")
-      throw new Error("ไม่พบ type_name && website_id ");
-    // ค้นหา ID Type name
-    let sql = `SELECT id, title , description, image, score type_id FROM blog WHERE website_id = ? `;
-    let params = [];
-    if (type_name === "all") {
-      sql += ` `;
-      params.push(website_id);
-    } else {
-      sql += ` AND type_id = ? `;
-      params.push(website_id, type_name);
-    }
-
-    if (search) {
-      sql += ` AND title LIKE ? `;
-      params.push(`%${search}%`);
-    }
-
-    sql += ` LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
-
-    const [result] = await connection.query(sql, params);
-
-    return res.status(200).json({
-      page,
-      limit,
-      totalPages,
-      totalItems,
-      data: result,
-    });
+    return res.status(200).json({ message: "บันทึกสำเร็จ" });
   } catch (error) {
     console.log(error);
-    res.status(500).json(error.message);
   } finally {
-    if (connection) connection.release();
+    if (db) db.release();
   }
 });
 
-// 4 บทความที่เกี่ยวข้อง
-app.get("/api/display/top_4/:website_id", async (req, res) => {
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    const { website_id } = req.params;
-    const { id } = req.query;
-
-    if (website_id == "" || !id) throw new Error("ไม่พบ website_id");
-    const sql = `SELECT id, title, score, description, contants, image, keywords FROM blog WHERE website_id = ? AND id != ? ORDER BY score DESC LIMIT 6`;
-    const [result] = await connection.query(sql, [website_id, id]);
-    res.status(200).json(result);
-  } catch (error) {
-    console.log(error);
-    res.status(500).json(error.message);
-  } finally {
-    if (connection) connection.release();
-  }
-});
-
-// BLOGS SECTION *************************************************
-
-// GET ALL
 app.post("/api/blogs", async (req, res) => {
   let connection;
   try {
     connection = await pool.getConnection();
-    const { website_id, search, full } = req.body;
-
-    if (!website_id)
-      return res.status(400).json({ message: "ไม่พบเว็บไซต์ที่ต้องการ " });
+    const { search, full } = req.body;
 
     // paginations
     const page = parseInt(req.body.page) || 1;
-    let sqlPage = `SELECT COUNT(id) as count FROM blogs WHERE website_id = ? `;
-    let params_search = [website_id];
+    let sqlPage = `SELECT COUNT(id) as count FROM blogs   `;
+    let params_search = [];
     if (search) {
-      sqlPage += ` AND title LIKE ?`;
+      sqlPage += ` WHERE title LIKE ?`;
       params_search.push(`%${search}%`);
     }
     const [resultPage] = await connection.query(sqlPage, params_search);
@@ -474,12 +140,10 @@ app.post("/api/blogs", async (req, res) => {
     const totalItems = parseInt(resultPage[0].count);
     const totalPages = Math.ceil(totalItems / limit);
 
-    console.log(req.body);
-
-    let sql = `SELECT id, title, description, image FROM blogs WHERE website_id = ?`;
-    let params = [website_id];
+    let sql = `SELECT id, title, description , content, keywords, image FROM blogs   `;
+    let params = [];
     if (search) {
-      sql += ` AND title LIKE ?`;
+      sql += ` WHERE title LIKE ?`;
       params.push(`%${search}%`);
     }
 
@@ -497,197 +161,58 @@ app.post("/api/blogs", async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json(error.message);
   } finally {
     if (connection) connection.release();
   }
 });
 
-// GET ID
-app.get("/api/blogs/:id", async (req, res) => {
-  let connection;
+app.get(`/api/blog/:id`, async (req, res) => {
+  const { id } = req.params;
+  let db = await pool.getConnection();
   try {
-    connection = await pool.getConnection();
-    const { id } = req.params;
-    const sql = `SELECT id, title, description, keywords, content, image FROM blogs WHERE id = ?`;
-    const [result] = await connection.query(sql, [id]);
+    if (!id) return res.status(400).json({ message: "ส่งข้อมูลไม่ครบ" });
+
+    const sql = `SELECT id, title, description, keywords, content, image FROM blogs WHERE id = ? `;
+    const [result] = await db.query(sql, [id]);
     return res.status(200).json(result[0]);
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json(error.message);
-  } finally {
-    if (connection) connection.release();
-  }
-});
-
-// GET SHOW DISPLAY ALL DYNAMIC
-app.post("/api/blogs/display", async (req, res) => {
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    const { website_id, id, limit } = req.body;
-    if (!website_id)
-      return res.status(400).json({ message: "ไม่พบเว็บที่ต้องการ" });
-    let sql = `SELECT id, title, image FROM blogs WHERE website_id = ?`;
-    let params = [website_id]
-
-  if (id) {
-    sql += ` AND id != ?`;
-    params.push(id);
-  }
-
-  sql += ` ORDER BY id DESC`
-
-  if (limit) {
-    sql += ` LIMIT ?`;
-    params.push(limit);
-  }
-
-
-    const [result] = await connection.query(sql, params)
-    return res.status(200).json(result)
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json(error.message);
-  } finally {
-    if (connection) connection.release();
-  }
-});
-
-// POST
-app.post("/api/blogs/add", upload.single("image"), async (req, res) => {
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    const { title, dec, keywords, content, website_id } = req.body;
-    const file = req.file || null;
-
-    // เช็คซ้้ำ
-    const sqlCheck = `SELECT id FROM blogs WHERE title = ? AND website_id = ?`;
-    const [resultCheck] = await connection.query(sqlCheck, [title, website_id]);
-    if (resultCheck.length > 0)
-      return res.status(400).json({ message: "มีข้อมูลนี้แล้ว" });
-
-    // บันทึกรูป
-    let newFileName = "";
-    if (file !== null) {
-      const newName = uuidv4();
-      newFileName = Date.now() + "_" + newName;
-      const remoteFilePath = `/public_html/uploads/web.devsriwararak/${newFileName}`;
-      // อัปโหลดไฟล์ไปยัง FTP
-      const readStream = new stream.PassThrough();
-      readStream.end(file.buffer);
-      await ftpService.uploadFile(readStream, remoteFilePath);
-    }
-
-    // บันทึกข้อมูล
-    const sql = `INSERT INTO blogs (title, description, keywords, content, image, website_id) VALUES (?,?,?,?,?,?)`;
-    await connection.query(sql, [
-      title,
-      dec,
-      keywords,
-      content,
-      newFileName,
-      website_id,
-    ]);
-    return res.status(200).json({ message: "บันทึกสำเร็จ" });
   } catch (error) {
     console.log(error);
     return res.status(500).json(error.message);
   } finally {
-    if (connection) connection.release();
+    if (db) db.release();
   }
 });
 
-// UPDATE
-app.put("/api/blogs", upload.single("image"), async (req, res) => {
-  let connection;
+app.delete("/api/blog/:id", async (req, res) => {
+  const { id } = req.params;
+  let db = await pool.getConnection();
+
   try {
-    connection = await pool.getConnection();
+    if (!id) return res.status(400).json({ message: "ส่งข้อมูลไม่ครบ" });
 
-    const { id, title, dec, keywords, content, webSiteId, oldImage } = req.body;
-    const file = req.file || null;
+    // check รูปเก่าก่อน
+    const sqlCheckImage = `SELECT image FROM blogs WHERE id = ?`;
+    const [resultCheckImage] = await db.query(sqlCheckImage, [id]);
+    const checkImage = resultCheckImage[0].image || "";
 
-    console.log(req.body);
-    console.log(file);
-
-    // เช็คซ้้ำ
-    const sqlCheck = `SELECT id FROM blogs WHERE title = ? AND website_id = ? AND id != ?`;
-    const [resultCheck] = await connection.query(sqlCheck, [
-      title,
-      webSiteId,
-      id,
-    ]);
-    if (resultCheck.length > 0)
-      return res.status(400).json({ message: "มีข้อมูลนี้แล้ว" });
-
-    // เช็ครูป
-    let newFileName = oldImage;
-    if (file) {
-      // ลบรูปเก่าก่อน
-      if (oldImage) {
-        await Promise.all([
-          ftpService.deleteRemoteFile(
-            `/public_html/uploads/web.devsriwararak/${oldImage}`
-          ),
-        ]);
-      }
-      // บันทึกรูป
-      const newName = uuidv4();
-      newFileName = Date.now() + "_" + newName;
-      const remoteFilePath = `/public_html/uploads/web.devsriwararak/${newFileName}`;
-      // อัปโหลดไฟล์ไปยัง FTP
-      const readStream = new stream.PassThrough();
-      readStream.end(file.buffer);
-      await ftpService.uploadFile(readStream, remoteFilePath);
-    }
-
-    // บันทึก
-    const sql = `UPDATE blogs SET title=?, description=?, keywords=?, content=?, image=? WHERE id =? `;
-    await connection.query(sql, [
-      title,
-      dec,
-      keywords,
-      content,
-      newFileName,
-      id,
-    ]);
-    return res.status(200).json({ message: "บันทึกสำเร็จ" });
-
-    console.log("mai meee");
-  } catch (error) {
-    return res.status(500).json(error.message);
-  } finally {
-    if (connection) connection.release();
-  }
-});
-
-// DELETE
-app.post("/api/blogs/delete", async (req, res) => {
-  let connection;
-  try {
-    connection = await pool.getConnection();
-    const { id, image } = req.body;
-
-    if (image) {
-      // ลบรูปเก่าก่อน
-      await Promise.all([
-        ftpService.deleteRemoteFile(
-          `/public_html/uploads/web.devsriwararak/${image}`
-        ),
-      ]);
-    }
+    if (checkImage)
+      await ftpService.deleteRemoteFile(
+        `/public_html/web/uploads/${checkImage}`
+      );
 
     const sql = `DELETE FROM blogs WHERE id = ?`;
-    await connection.query(sql, [id]);
+    await db.query(sql, [id]);
+
     return res.status(200).json({ message: "ลบสำเร็จ" });
   } catch (error) {
-    console.error(error);
+    console.log(error);
     return res.status(500).json(error.message);
   } finally {
-    if (connection) connection.release();
+    if (db) db.release();
   }
 });
+
+// DISPLAY ***********************************************
 
 app.listen(port, () => {
   console.log("server is", port);
