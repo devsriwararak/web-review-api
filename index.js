@@ -109,7 +109,7 @@ app.post(`/api/add/blog`, upload.single("image"), async (req, res) => {
       sql = `UPDATE blogs SET title = ?, description = ?, keywords = ?, content = ?, image = ? WHERE id = ?   `;
       params.push(title, desc, keywords, content, newFileName, id)
     }
-    
+
     await db.query(sql, params);
 
     return res.status(200).json({ message: "บันทึกสำเร็จ" });
@@ -182,6 +182,23 @@ app.get(`/api/blog/:id`, async (req, res) => {
     if (db) db.release();
   }
 });
+
+app.get('/api/blogs/byid', async(req,res)=> {
+  let db = await pool.getConnection()
+  try {
+    
+    const sql = `SELECT id FROM blogs`
+    const [results]  = await db.query(sql)
+    return res.status(200).json(results)
+    
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json(error.message)
+    
+  }finally {
+    if(db) db.release()
+  }
+})
 
 app.delete("/api/blog/:id", async (req, res) => {
   const { id } = req.params;
