@@ -29,7 +29,8 @@ const ftpConfig = {
       });
   
       client.connect(ftpConfig);
-    });
+    }); 
+    
   };
   
 
