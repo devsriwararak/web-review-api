@@ -1,11 +1,5 @@
 import express from "express";
 import cors from "cors";
-import pool from "./db.js";
-import multer from "multer";
-import fs from "fs";
-// import { ftpClient, connectToFtp } from "./Ftp.js";
-import ftpService from "./ftpService .js";
-import { v4 as uuidv4 } from "uuid";
 const app = express();
 
 // router
